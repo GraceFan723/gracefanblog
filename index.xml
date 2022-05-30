@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+    <channel>
+        <title>用魔法打败魔法</title>
+        <link>https://gracefan723.github.io/gracefanblog/</link>
+        <description>Recent content on 用魔法打败魔法</description>
+        <generator>Hugo -- gohugo.io</generator>
+        <language>zh-cn</language>
+        <lastBuildDate>Sun, 29 May 2022 17:25:07 +0800</lastBuildDate><atom:link href="https://gracefan723.github.io/gracefanblog/index.xml" rel="self" type="application/rss+xml" /><item>
+        <title>First</title>
+        <link>https://gracefan723.github.io/gracefanblog/p/first/</link>
+        <pubDate>Sun, 29 May 2022 17:25:07 +0800</pubDate>
+        
+        <guid>https://gracefan723.github.io/gracefanblog/p/first/</guid>
+        <description>&lt;ul&gt;
+&lt;li&gt;test test test&lt;/li&gt;
+&lt;/ul&gt;
+</description>
+        </item>
+        <item>
+        <title>About</title>
+        <link>https://gracefan723.github.io/gracefanblog/about/</link>
+        <pubDate>Sun, 29 May 2022 17:23:55 +0800</pubDate>
+        
+        <guid>https://gracefan723.github.io/gracefanblog/about/</guid>
+        <description></description>
+        </item>
+        
+    </channel>
+</rss>
