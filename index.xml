@@ -14,6 +14,517 @@
         <description></description>
         </item>
         <item>
+        <title>数据库事务及MVCC</title>
+        <link>https://gracefan723.github.io/gracefanblog/p/%E6%95%B0%E6%8D%AE%E5%BA%93%E4%BA%8B%E5%8A%A1%E5%8F%8Amvcc/</link>
+        <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+        
+        <guid>https://gracefan723.github.io/gracefanblog/p/%E6%95%B0%E6%8D%AE%E5%BA%93%E4%BA%8B%E5%8A%A1%E5%8F%8Amvcc/</guid>
+        <description>&lt;h1 id=&#34;第七次组会数据库事务及可重复读读提交的具体实现&#34;&gt;第七次组会（数据库事务及可重复读、读提交的具体实现）&lt;/h1&gt;
+&lt;h3 id=&#34;intro&#34;&gt;Intro&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;一个业务在程序里会涉及到一系列的操作，要么全部执行成功，要么全部失败，不允许出现中间状态的数据。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5c640.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;图片&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;数据库中的**&lt;!-- raw HTML omitted --&gt;事务&lt;!-- raw HTML omitted --&gt;**能达到该效果，等到数据库操作执行完成后，才提交事务
+&lt;ul&gt;
+&lt;li&gt;对于已经提交的事务，该事务对数据库所做的修改将永久失效&lt;/li&gt;
+&lt;li&gt;事务期间发生中断或错误，则该期间所有所做的修改将会被回滚到没执行该事务之前的状态。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;acid数据库的特性&#34;&gt;ACID数据库的特性&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;原子性（Atomicity）&lt;/strong&gt;：一个事务中的所有操作，==要么全部完成，要么全部不完成==，不会结束在中间某个环节，而且事务在执行过程中发生错误，会被回滚到事务开始前的状态，就像这个事务从来没有执行过一样；&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;一致性（Consistency）&lt;/strong&gt;：数据库的完整性不会因为事务的执行而受到破坏，比如表中有一个字段为姓名，它有==唯一约束==，也就是表中姓名不能重复，如果一个事务对姓名字段进行了修改，但是在事务提交后，表中的姓名变得非唯一性了，这就破坏了事务的一致性要求，这时数据库就要撤销该事务，返回初始化的状态。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;事务必须使数据库从一个一致性状态到另外一个一致性状态。&lt;/p&gt;
+&lt;p&gt;在转账案例中，一致性是指在转账前和转账后，（无论怎么转账），钱的总金额是前后一致的，不变的。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;隔离性（Isolation）&lt;/strong&gt;：数据库允许多个并发事务同时对其数据进行读写和修改的能力，==隔离性可以防止多个事务并发执行时由于交叉执行而导致数据的不一致==。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;持久性（Durability）&lt;/strong&gt;：事务处理结束后，对数据的修改就是永久的，即便系统故障也不会丢失。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;innodb引擎保证事务四种特性的技术&#34;&gt;InnoDB引擎保证事务四种特性的技术&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;原子性和持久性：redo log（重做日志）&lt;/li&gt;
+&lt;li&gt;一致性：undo log（回滚日志）&lt;/li&gt;
+&lt;li&gt;隔离性：MVCC（多版本并发控制）或锁机制&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;并发事务会引发的问题具有交织操作&#34;&gt;并发事务会引发的问题（具有交织操作）&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;mysql服务端允许多个客户端连接，所以可能会出现同时处理多个事务的情况&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;严重性排序&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5c640-165513254974612.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;图片&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;h3 id=&#34;脏读dirty-read&#34;&gt;脏读（dirty read）&lt;/h3&gt;
+&lt;p&gt;&lt;strong&gt;&lt;!-- raw HTML omitted --&gt;读到其他事务未提交的数据&lt;!-- raw HTML omitted --&gt;&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;&lt;!-- raw HTML omitted --&gt;一个事务读到了另一个未提交事务修改过的数据&lt;!-- raw HTML omitted --&gt;&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5c640-16551284304793.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;图片&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;假设有A和B这两个事务同时在处理，事务A先开始从数据库中读取小林的余额数据，然后再执行更新操作，如果此时事务A还没有提交事务，而此时正好事务B也从数据库中读取小林的余额数据，那么事务B读取到的余额数据是刚才事务A更新后的数据，即使没有提交事务。&lt;/p&gt;
+&lt;p&gt;因为事务A是还没提交事务的，也就是它随时可能发生回滚操作，&lt;strong&gt;如果在上面这种情况事务A发生了回滚，那么事务B刚才得到的数据就是==过期的数据==，这种现象就被称为脏读。&lt;/strong&gt;&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h3 id=&#34;不可重复读non-repeatable-read读取同一个数据&#34;&gt;不可重复读（non-repeatable read）读取同一个数据&lt;/h3&gt;
+&lt;p&gt;&lt;strong&gt;&lt;!-- raw HTML omitted --&gt;前后读取的数据不一致&lt;!-- raw HTML omitted --&gt;&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;&lt;!-- raw HTML omitted --&gt;&lt;strong&gt;在一个事务内多次读取同一个数据，如果出现前后两次读到的数据不一样的情况&lt;/strong&gt;&lt;!-- raw HTML omitted --&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5c640-16551299890886.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;图片&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;假设有A和B这两个事务同时在处理，事务A先开始从数据库中读取小林的余额数据，然后继续执行代码逻辑处理，&lt;strong&gt;在这过程中如果事务B更新了这条数据，并提交了事务，那么当事务A再次读取该数据时，就会发现==前后两次读取同一个数据是不一致的==，这种现象就被称为不可重复读。&lt;/strong&gt;&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h3 id=&#34;幻读phantom-read查询相同的条件&#34;&gt;幻读（phantom read）查询相同的条件&lt;/h3&gt;
+&lt;p&gt;&lt;strong&gt;&lt;!-- raw HTML omitted --&gt;前后读取的记录数量不一致&lt;!-- raw HTML omitted --&gt;&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;&lt;!-- raw HTML omitted --&gt;&lt;strong&gt;在一个事务内多次查询==某个符合查询条件的「记录数量]==，如果出现前后两次查询到的记录数量不一样的情况，就意味着发生了「幻读」现象。&lt;/strong&gt;&lt;!-- raw HTML omitted --&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5c640-16551309674439.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;图片&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;假设有A和B这两个事务同时在处理，事务A先开始从数据库查询账户余额大于100万的记录，发现共有5条，然后事务B也按相同的搜索条件也是查询出了5条记录。&lt;/p&gt;
+&lt;p&gt;接下来，事务A插入了一条余额超过100万的账号，并提交了事务，此时数据库超过100 万余额的账号个数就变为6。&lt;/p&gt;
+&lt;p&gt;然后事务再次查询账户余额大于100万的记录，此时查询到的记录数量有6条，&lt;strong&gt;发现和前一次读到的记录数量不一样了，就感觉发生了幻觉一样，这种现象就被称为幻读。&lt;/strong&gt;&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h2 id=&#34;四种隔离级别&#34;&gt;四种隔离级别&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;由SQL标准提出用于规避这些现象，隔离级别越高，性能效率就越低。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;隔离水平高低排序&#34;&gt;隔离水平高低排序&lt;/h3&gt;
+&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5c640-165513340802415.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;图片&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;h3 id=&#34;不同隔离级别并行事务时可能发生的现象会不同&#34;&gt;不同隔离级别并行事务时可能发生的现象会不同&lt;/h3&gt;
+&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5c640-165513426209318.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;图片&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;h3 id=&#34;读未提交read-uncommitted&#34;&gt;读未提交（read uncommitted）&lt;/h3&gt;
+&lt;blockquote&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;指一个事务还没提交时，它做的变更就能被其他事务看到&lt;/strong&gt;。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;有脏读（读到别的事务未提交的数据）、不可重复读（前后读取一个数据不一致）、虚幻读（前后查询的记录不一致）的问题。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;&lt;strong&gt;&lt;!-- raw HTML omitted --&gt;读未提交是最低的隔离级别，也是最不安全的隔离级别。&lt;!-- raw HTML omitted --&gt;&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;脏读和不可重复读&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5cimage-20220513160250043-16529229591879.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20220513160250043&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;虚幻读&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5cimage-20220513160611261-165292296753910.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20220513160611261&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;h3 id=&#34;读提交read-committed&#34;&gt;读提交（read committed）&lt;/h3&gt;
+&lt;blockquote&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;指一个事务提交之后，它做的变更才能被其他事务看到&lt;/strong&gt;。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;有不可重复读、虚幻读的问题，没有脏读的问题。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;&lt;strong&gt;不可重复读&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5cimage-20220513161551856-165292297015311.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20220513161551856&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;幻读&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5cimage-20220513161958115-165292297671512.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20220513161958115&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;h3 id=&#34;可重复读repeatable-read&#34;&gt;可重复读（repeatable read）&lt;/h3&gt;
+&lt;blockquote&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;指一个事务执行过程中看到的数据，一直&lt;!-- raw HTML omitted --&gt;跟这个事务启动时&lt;!-- raw HTML omitted --&gt;看到的数据是一致的。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;没有脏读、不可重复读的问题，但是有幻读问题。&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;MySQL通过MVCC（多版本控制）解决了部分的虚幻读问题，但是并没有完全解决虚幻读的问题。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;strong&gt;MySQL InnoDB 引擎的默认隔离级别&lt;/strong&gt;。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;&lt;strong&gt;没有脏读和不可重复读问题&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5cimage-20220513162622117-165292298170513.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20220513162622117&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;没有完全解决幻读问题&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;当前事务去修改另一个事务新增记录的值时，会出现幻读问题，再次查询会把新增记录一起查询出来。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5cimage-20220513163223965-165292298399014.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20220513163223965&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5cimage-20220513163348142-165292298914815.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20220513163348142&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;h3 id=&#34;串行化serializable&#34;&gt;串行化（serializable）&lt;/h3&gt;
+&lt;blockquote&gt;
+&lt;ul&gt;
+&lt;li&gt;在串行化的隔离级别下，事务会一个一个提交，事务不存在并发执行的情况。
+&lt;ul&gt;
+&lt;li&gt;会对记录加上读写锁，在多个事务对这条记录进行读写操作的时候，如果发生了读写冲突，后访问的事务必须等待前一个事务执行完成才能继续执行。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;没有脏读、不可重复读、虚幻读的问题&lt;/li&gt;
+&lt;li&gt;这个是最严格的隔离级别。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5cimage-20220513164328041-165292299451316.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;image-20220513164328041&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;h3 id=&#34;总结与案例&#34;&gt;总结与案例&lt;/h3&gt;
+&lt;h4 id=&#34;总结&#34;&gt;总结&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;解决【脏读】现象，需要升级到【读提交】及以上的隔离级别&lt;/li&gt;
+&lt;li&gt;解决【不可重复读】现象，需要升级到【可重复读】及以上的隔离级别&lt;/li&gt;
+&lt;li&gt;解决【幻读】现象，不建议升级到【串行化】，会导致数据库在并发事务的时候性能很差。
+&lt;ul&gt;
+&lt;li&gt;InnoDB引擎的默认隔离级别虽然是【可重复读】，但是它通过next-key lock锁（行锁和间隙锁的组合）来锁住记录之间的“间隙”和记录本身，防止其他事务在这个记录之间插入新的记录，这样就避免了幻读现象。&lt;/li&gt;
+&lt;li&gt;其他解决幻读的方式有在可重复读的事务级别下，给事务操作的这张表添加表锁。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h4 id=&#34;案例&#34;&gt;案例&lt;/h4&gt;
+&lt;blockquote&gt;
+&lt;p&gt;有两个并发的事务，事务A只负责查询余额，事务B则会将我的余额改成200万，下面是按照时间顺序执行两个事务的行为：&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5c640.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;图片&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;ul&gt;
+&lt;li&gt;【读未提交】：V1、V2、V3查询的值是200万。&lt;/li&gt;
+&lt;li&gt;【读提交】：V1查询的值是100万，V2、V3查询的值是200万&lt;/li&gt;
+&lt;li&gt;【可重复读】：事务A只能看见启动事务时的数据，V1、V2查询的值是100万，V3的值是200万&lt;/li&gt;
+&lt;li&gt;【串行化】：事务B执行修改操作时，之前事务A执行了读操作，于是会发生读写冲突，直至事务A提交以后，事务B才可以继续执行。V1、V2的值是100万，V3的值是200万。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/blockquote&gt;
+&lt;h3 id=&#34;四种隔离级别的具体实现&#34;&gt;四种隔离级别的具体实现&lt;/h3&gt;
+&lt;h4 id=&#34;读未提交&#34;&gt;读未提交&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;可以读到未提交事务修改的数据，所以直接读取==最新的数据==即可。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h4 id=&#34;串行化&#34;&gt;串行化&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;通过加==读写锁==的方式来避免并行访问。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h4 id=&#34;读提交可重复读&#34;&gt;读提交、可重复读&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;通过==Read View==来实现&lt;/li&gt;
+&lt;li&gt;读提交和可重复读的Read View创建时机不同，可以把Read View理解成一个数据快照。
+&lt;ul&gt;
+&lt;li&gt;读提交：在每个读取数据前都生成一个Read View&lt;/li&gt;
+&lt;li&gt;可重复读：启动事务时生成一个Read View，整个事务期间都使用该Read View。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;控制并发事务访问同一个记录时的行为，这就叫==MVCC（多版本并发控制）==。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h4 id=&#34;注意执行开始事务命令并不意味着启动了事务在mysql有两种开启事务的命令分别是&#34;&gt;注意，执行「开始事务」命令，并不意味着启动了事务。在mySQL有两种开启事务的命令，分别是：&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;第一种：begin/start transaction 命令；&lt;/li&gt;
+&lt;li&gt;第二种：start transaction with consistent snapshot 命令；&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;这两种开启事务的命令，事务的启动时机是不同的：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;执行了 begin/start transaction 命令后，并不代表事务启动了。只有在执行这个命令后，执行了增删查改操作的 SQL 语句，才是事务真正启动的时机；&lt;/li&gt;
+&lt;li&gt;执行了 start transaction with consistent snapshot 命令，就会马上启动事务。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;ul&gt;
+&lt;li&gt;Read View的四个重要的字段：&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5c640-16551992872623.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;图片&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;聚簇索引记录中的两个隐藏列：
+&lt;ul&gt;
+&lt;li&gt;&lt;!-- raw HTML omitted --&gt;trx_id&lt;!-- raw HTML omitted --&gt;：当一个事务对某条聚簇索引记录进行改动时，就会把该事务的事务id记录在trx_id隐藏列里&lt;/li&gt;
+&lt;li&gt;&lt;!-- raw HTML omitted --&gt;roll_pointer&lt;!-- raw HTML omitted --&gt;：每次对某条聚簇索引记录进行改动时，都会把旧版本的记录写入到undo日志中，该隐藏列是个指针，指向每一个旧版本记录，可以通过它找到修改前的记录。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5cReadView.drawio.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;img&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;p&gt;一个事务去访问记录的时候，除了自己的更新记录总是可见之外，还有这几种情况：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;如果记录的trx_id值小于Read View中的&lt;code&gt;min_trx_id&lt;/code&gt;值，表示这个版本的记录是在创建Read View&lt;strong&gt;前&lt;/strong&gt;已经提交的事务生成的，所以该版本的记录对当前事务&lt;strong&gt;可见&lt;/strong&gt;。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;如果记录的trx_id值大于等于Read View中的&lt;code&gt;max_trx_id&lt;/code&gt;值，表示这个版本的记录是在创建Read View&lt;strong&gt;后&lt;/strong&gt;才启动的事务生成的，所以该版本的记录对当前事务&lt;strong&gt;不可见&lt;/strong&gt;。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;如果记录的trx_id值在Read View的&lt;code&gt;min_trx_id&lt;/code&gt;和&lt;code&gt;max_trx_id&lt;/code&gt;之间，需要判断 trx_id是否在m_ids列表中：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;如果记录的trx_id&lt;strong&gt;在&lt;/strong&gt;&lt;code&gt;m_ids&lt;/code&gt;列表中，表示生成该版本记录的活跃事务依然活跃着（还没提交事务），所以该版本的记录对当前事务&lt;strong&gt;不可见&lt;/strong&gt;。&lt;/li&gt;
+&lt;li&gt;如果记录的trx_id&lt;strong&gt;不在&lt;/strong&gt;&lt;code&gt;m_ids&lt;/code&gt;列表中，表示生成该版本记录的活跃事务已经被提交，所以该版本的记录对当前事务&lt;strong&gt;可见&lt;/strong&gt;。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;这种通过「版本链」来控制并发事务访问同一个记录时的行为就叫MVCC（多版本并发控制）。&lt;/strong&gt;&lt;/p&gt;
+&lt;h5 id=&#34;具体实现&#34;&gt;具体实现&lt;/h5&gt;
+&lt;p&gt;（可重复读在事务启动时生成一个Read View，然后整个事务期间都使用该Read View）&lt;/p&gt;
+&lt;p&gt;假设事务A启动后紧接着事务B也启动了，分别启动两个事务时创建的Read View如下：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5c640-16552202861546.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;图片&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;p&gt;假设按顺序执行以下操作：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;事务A读取小林的账户余额记录，读到余额是100万&lt;/li&gt;
+&lt;li&gt;事务B将小林的账户余额记录修改成200万，但并不提交事务&lt;/li&gt;
+&lt;li&gt;事务A读取小林的账户余额记录，读到余额还是100万&lt;/li&gt;
+&lt;li&gt;事务B提交事务&lt;/li&gt;
+&lt;li&gt;事务A读取小林的账户余额记录，读到余额还是100万&lt;/li&gt;
+&lt;/ul&gt;
+&lt;blockquote&gt;
+&lt;ul&gt;
+&lt;li&gt;事务A查询：&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;事务A去读余额为账户余额为100万的记录，&lt;/p&gt;
+&lt;p&gt;找到该记录以后，它会看到该记录的隐藏字段trx_id为50，&lt;/p&gt;
+&lt;p&gt;与事务A的Read View的m_ids字段对比发现，该记录的事务id并不在活跃事务的列表中，小于事务A的事务id（creator_trx_id），说明该记录的事务早就在事务A之前进行过了提交，因此事务A可以获取到该记录。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;blockquote&gt;
+&lt;ul&gt;
+&lt;li&gt;事务B接着进行修改：&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;对记录进行修改时，需要修改trx_id字段，所以当事务B对该记录进行修改时，将小林的余额改成200万时，trx_id会修改为52，MySQL会记录相应的undo log，并以链表的方式串联起来，形成版本链。&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5c640.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;图片&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;blockquote&gt;
+&lt;ul&gt;
+&lt;li&gt;事务A之后再次查询：&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;发现这条记录的trx_id值为52，在事务A的Read View的min_trx_id和max_trx_id之间，则需要判断trx_id值是否在m_ids范围内，&lt;/p&gt;
+&lt;p&gt;判断结果是在的，那么说明这条记录是被还未提交的事务修改的，这时候事务A不会去读取这个版本的记录，而是沿着undo log链条往下找旧版本的记录，直到找到trx_id小于事务A的Read View中的min_trx_id值的第一条记录，所以事务B能读取到的是trx_id为50的记录，即100万这条记录。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;blockquote&gt;
+&lt;ul&gt;
+&lt;li&gt;事务B提交事务后，事务A再次进行查询：&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;还是和上面那次查询读取的步骤一样，读到的还是余额为100万的这条。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h4 id=&#34;读提交的具体实现&#34;&gt;读提交的具体实现&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;读提交隔离级别是在每次读取数据时，都会生成一个新的Read View&lt;/li&gt;
+&lt;/ul&gt;
+&lt;blockquote&gt;
+&lt;p&gt;假设事务A（事务id为51）启动后，紧接着事务B（事务id为52）也启动了，接着按顺序执行了以下操作：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;事务B读取数据（创建Read View），小林的账户余额为100万&lt;/li&gt;
+&lt;li&gt;事务A修改数据（还没提交事务），将小林的账户余额从100万修改成了200万&lt;/li&gt;
+&lt;li&gt;事务B读取数据（创建Read View），小林的账户余额为100万&lt;/li&gt;
+&lt;li&gt;事务A提交事务&lt;/li&gt;
+&lt;li&gt;事务B读取数据（创建Read View），小林的账户余额为200万&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5c%e8%af%bb%e6%8f%90%e4%ba%a4%e4%ba%8b%e5%8a%a1.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;img&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;事务B在找到小林这条记录时，会看到这条记录的trx_id是51，在事务B的Read View的min_trx_id和max_trx_id之间，需要判断trx_id值是否在m_ids范围内，判断的结果是在的，说明这条记录是被还未被提交的事务修改的，这时事务B并不会读取这个版本的记录。&lt;/p&gt;
+&lt;p&gt;事务B沿着undo log链条往下找旧版本的记录，直到找到trx_id小于事务B的Read View中的min_trx_id值的第一条记录，所以事务B能够读取到的是trx_id为50的记录，也就是小林余额是100万的这条记录。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;blockquote&gt;
+&lt;p&gt;事务A提交后，由于隔离级别是读提交，所以事务B在每次读数据的时候，会重新创建Read View，此时事务B第三次读取数据时创建的Read View如下：&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5c%e8%af%bb%e6%8f%90%e4%ba%a4%e4%ba%8b%e5%8a%a12.drawio.png&#34;
+	
+	
+	
+	loading=&#34;lazy&#34;
+	
+		alt=&#34;img&#34;
+	
+	
+&gt;&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;blockquote&gt;
+&lt;p&gt;事务B在找到这条记录时，会发现这条记录的trx_id是51，比事务B的Read View中的min_trx_id值（52）还小，这意味着修改这条记录的事务早就在创建Read View前提交过了，所以该版本的记录对事务B是可见的。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;blockquote&gt;
+&lt;p&gt;在读提交隔离级别下，事务每次读数据时都重新创建Read View，那么在事务期间的多次读取同一条数据，前后两次读的数据可能会出现不一致，因为可能这期间另外一个事务修改了该记录，并提交了事务。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;blockquote&gt;
+&lt;p&gt;在可重复读隔离级别中，普通的select语句就是基于MVCC实现的快照读，也就是不会加锁的。而select .. for update语句就不是快照读了，而是当前读了，也就是每次读都是拿到最新版本的数据，但是它会对读到的记录加上next-key lock锁。&lt;/p&gt;
+&lt;/blockquote&gt;
+</description>
+        </item>
+        <item>
         <title>小徐0608生日快乐</title>
         <link>https://gracefan723.github.io/gracefanblog/p/%E5%B0%8F%E5%BE%900608%E7%94%9F%E6%97%A5%E5%BF%AB%E4%B9%90/</link>
         <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
