@@ -14,17 +14,17 @@
         <description></description>
         </item>
         <item>
-        <title>数据库事务及MVCC</title>
-        <link>https://gracefan723.github.io/gracefanblog/p/%E6%95%B0%E6%8D%AE%E5%BA%93%E4%BA%8B%E5%8A%A1%E5%8F%8Amvcc/</link>
+        <title></title>
+        <link>https://gracefan723.github.io/gracefanblog/p/</link>
         <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
         
-        <guid>https://gracefan723.github.io/gracefanblog/p/%E6%95%B0%E6%8D%AE%E5%BA%93%E4%BA%8B%E5%8A%A1%E5%8F%8Amvcc/</guid>
+        <guid>https://gracefan723.github.io/gracefanblog/p/</guid>
         <description>&lt;h1 id=&#34;第七次组会数据库事务及可重复读读提交的具体实现&#34;&gt;第七次组会（数据库事务及可重复读、读提交的具体实现）&lt;/h1&gt;
 &lt;h3 id=&#34;intro&#34;&gt;Intro&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;一个业务在程序里会涉及到一系列的操作，要么全部执行成功，要么全部失败，不允许出现中间状态的数据。&lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5c640.png&#34;
+&lt;p&gt;&lt;img src=&#34;http://gracefan-typora-imgsubmit.oss-cn-beijing.aliyuncs.com/img/640.png&#34;
 	
 	
 	
@@ -74,7 +74,7 @@
 &lt;li&gt;mysql服务端允许多个客户端连接，所以可能会出现同时处理多个事务的情况&lt;/li&gt;
 &lt;/ul&gt;
 &lt;p&gt;&lt;strong&gt;严重性排序&lt;/strong&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5c640-165513254974612.png&#34;
+&lt;p&gt;&lt;img src=&#34;http://gracefan-typora-imgsubmit.oss-cn-beijing.aliyuncs.com/img/640-16551284304793.png&#34;
 	
 	
 	
@@ -87,7 +87,7 @@
 &lt;h3 id=&#34;脏读dirty-read&#34;&gt;脏读（dirty read）&lt;/h3&gt;
 &lt;p&gt;&lt;strong&gt;&lt;!-- raw HTML omitted --&gt;读到其他事务未提交的数据&lt;!-- raw HTML omitted --&gt;&lt;/strong&gt;&lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;&lt;!-- raw HTML omitted --&gt;一个事务读到了另一个未提交事务修改过的数据&lt;!-- raw HTML omitted --&gt;&lt;/strong&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5c640-16551284304793.png&#34;
+&lt;p&gt;&lt;img src=&#34;http://gracefan-typora-imgsubmit.oss-cn-beijing.aliyuncs.com/img/640-165513340802415.png&#34;
 	
 	
 	
@@ -104,7 +104,7 @@
 &lt;h3 id=&#34;不可重复读non-repeatable-read读取同一个数据&#34;&gt;不可重复读（non-repeatable read）读取同一个数据&lt;/h3&gt;
 &lt;p&gt;&lt;strong&gt;&lt;!-- raw HTML omitted --&gt;前后读取的数据不一致&lt;!-- raw HTML omitted --&gt;&lt;/strong&gt;&lt;/p&gt;
 &lt;p&gt;&lt;!-- raw HTML omitted --&gt;&lt;strong&gt;在一个事务内多次读取同一个数据，如果出现前后两次读到的数据不一样的情况&lt;/strong&gt;&lt;!-- raw HTML omitted --&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5c640-16551299890886.png&#34;
+&lt;p&gt;&lt;img src=&#34;http://gracefan-typora-imgsubmit.oss-cn-beijing.aliyuncs.com/img/640-16551309674439.png&#34;
 	
 	
 	
@@ -120,7 +120,7 @@
 &lt;h3 id=&#34;幻读phantom-read查询相同的条件&#34;&gt;幻读（phantom read）查询相同的条件&lt;/h3&gt;
 &lt;p&gt;&lt;strong&gt;&lt;!-- raw HTML omitted --&gt;前后读取的记录数量不一致&lt;!-- raw HTML omitted --&gt;&lt;/strong&gt;&lt;/p&gt;
 &lt;p&gt;&lt;!-- raw HTML omitted --&gt;&lt;strong&gt;在一个事务内多次查询==某个符合查询条件的「记录数量]==，如果出现前后两次查询到的记录数量不一样的情况，就意味着发生了「幻读」现象。&lt;/strong&gt;&lt;!-- raw HTML omitted --&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5c640-16551309674439.png&#34;
+&lt;p&gt;&lt;img src=&#34;http://gracefan-typora-imgsubmit.oss-cn-beijing.aliyuncs.com/img/640-16551299890886.png&#34;
 	
 	
 	
@@ -140,7 +140,7 @@
 &lt;li&gt;由SQL标准提出用于规避这些现象，隔离级别越高，性能效率就越低。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;h3 id=&#34;隔离水平高低排序&#34;&gt;隔离水平高低排序&lt;/h3&gt;
-&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5c640-165513340802415.png&#34;
+&lt;p&gt;&lt;img src=&#34;http://gracefan-typora-imgsubmit.oss-cn-beijing.aliyuncs.com/img/640-165513426209318.png&#34;
 	
 	
 	
@@ -151,7 +151,7 @@
 	
 &gt;&lt;/p&gt;
 &lt;h3 id=&#34;不同隔离级别并行事务时可能发生的现象会不同&#34;&gt;不同隔离级别并行事务时可能发生的现象会不同&lt;/h3&gt;
-&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5c640-165513426209318.png&#34;
+&lt;p&gt;&lt;img src=&#34;http://gracefan-typora-imgsubmit.oss-cn-beijing.aliyuncs.com/img/image-20220513160611261-165292296753910.png&#34;
 	
 	
 	
@@ -174,7 +174,7 @@
 &lt;/blockquote&gt;
 &lt;p&gt;&lt;strong&gt;&lt;!-- raw HTML omitted --&gt;读未提交是最低的隔离级别，也是最不安全的隔离级别。&lt;!-- raw HTML omitted --&gt;&lt;/strong&gt;&lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;脏读和不可重复读&lt;/strong&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5cimage-20220513160250043-16529229591879.png&#34;
+&lt;p&gt;&lt;img src=&#34;http://gracefan-typora-imgsubmit.oss-cn-beijing.aliyuncs.com/img/image-20220513160250043-16529229591879.png&#34;
 	
 	
 	
@@ -185,7 +185,7 @@
 	
 &gt;&lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;虚幻读&lt;/strong&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5cimage-20220513160611261-165292296753910.png&#34;
+&lt;p&gt;&lt;img src=&#34;http://gracefan-typora-imgsubmit.oss-cn-beijing.aliyuncs.com/img/image-20220513161551856-165292297015311.png&#34;
 	
 	
 	
@@ -207,7 +207,7 @@
 &lt;/ul&gt;
 &lt;/blockquote&gt;
 &lt;p&gt;&lt;strong&gt;不可重复读&lt;/strong&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5cimage-20220513161551856-165292297015311.png&#34;
+&lt;p&gt;&lt;img src=&#34;http://gracefan-typora-imgsubmit.oss-cn-beijing.aliyuncs.com/img/image-20220513161958115-165292297671512.png&#34;
 	
 	
 	
@@ -218,7 +218,7 @@
 	
 &gt;&lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;幻读&lt;/strong&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5cimage-20220513161958115-165292297671512.png&#34;
+&lt;p&gt;&lt;img src=&#34;http://gracefan-typora-imgsubmit.oss-cn-beijing.aliyuncs.com/img/image-20220513162622117-165292298170513.png&#34;
 	
 	
 	
@@ -246,7 +246,7 @@
 &lt;/ul&gt;
 &lt;/blockquote&gt;
 &lt;p&gt;&lt;strong&gt;没有脏读和不可重复读问题&lt;/strong&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5cimage-20220513162622117-165292298170513.png&#34;
+&lt;p&gt;&lt;img src=&#34;http://gracefan-typora-imgsubmit.oss-cn-beijing.aliyuncs.com/img/image-20220513163348142-165292298914815.png&#34;
 	
 	
 	
@@ -258,7 +258,7 @@
 &gt;&lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;没有完全解决幻读问题&lt;/strong&gt;&lt;/p&gt;
 &lt;p&gt;当前事务去修改另一个事务新增记录的值时，会出现幻读问题，再次查询会把新增记录一起查询出来。&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5cimage-20220513163223965-165292298399014.png&#34;
+&lt;p&gt;&lt;img src=&#34;http://gracefan-typora-imgsubmit.oss-cn-beijing.aliyuncs.com/img/image-20220513163223965-165292298399014.png&#34;
 	
 	
 	
@@ -268,7 +268,7 @@
 	
 	
 &gt;&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5cimage-20220513163348142-165292298914815.png&#34;
+&lt;p&gt;&lt;img src=&#34;http://gracefan-typora-imgsubmit.oss-cn-beijing.aliyuncs.com/img/image-20220513164328041-165292299451316.png&#34;
 	
 	
 	
@@ -290,7 +290,7 @@
 &lt;li&gt;这个是最严格的隔离级别。&lt;/li&gt;
 &lt;/ul&gt;
 &lt;/blockquote&gt;
-&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5cimage-20220513164328041-165292299451316.png&#34;
+&lt;p&gt;&lt;img src=&#34;http://gracefan-typora-imgsubmit.oss-cn-beijing.aliyuncs.com/img/640-16551992872623.png&#34;
 	
 	
 	
@@ -316,7 +316,7 @@
 &lt;blockquote&gt;
 &lt;p&gt;有两个并发的事务，事务A只负责查询余额，事务B则会将我的余额改成200万，下面是按照时间顺序执行两个事务的行为：&lt;/p&gt;
 &lt;/blockquote&gt;
-&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5c640.png&#34;
+&lt;p&gt;&lt;img src=&#34;http://gracefan-typora-imgsubmit.oss-cn-beijing.aliyuncs.com/img/640.png&#34;
 	
 	
 	
@@ -369,7 +369,7 @@
 &lt;ul&gt;
 &lt;li&gt;Read View的四个重要的字段：&lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5c640-16551992872623.png&#34;
+&lt;p&gt;&lt;img src=&#34;http://gracefan-typora-imgsubmit.oss-cn-beijing.aliyuncs.com/img/ReadView.drawio.png&#34;
 	
 	
 	
@@ -387,7 +387,7 @@
 &lt;/ul&gt;
 &lt;/li&gt;
 &lt;/ul&gt;
-&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5cReadView.drawio.png&#34;
+&lt;p&gt;&lt;img src=&#34;http://gracefan-typora-imgsubmit.oss-cn-beijing.aliyuncs.com/img/640-16552202861546.png&#34;
 	
 	
 	
@@ -417,7 +417,7 @@
 &lt;h5 id=&#34;具体实现&#34;&gt;具体实现&lt;/h5&gt;
 &lt;p&gt;（可重复读在事务启动时生成一个Read View，然后整个事务期间都使用该Read View）&lt;/p&gt;
 &lt;p&gt;假设事务A启动后紧接着事务B也启动了，分别启动两个事务时创建的Read View如下：&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5c640-16552202861546.png&#34;
+&lt;p&gt;&lt;img src=&#34;http://gracefan-typora-imgsubmit.oss-cn-beijing.aliyuncs.com/img/640-165513254974612.png&#34;
 	
 	
 	
@@ -448,7 +448,7 @@
 &lt;li&gt;事务B接着进行修改：&lt;/li&gt;
 &lt;/ul&gt;
 &lt;p&gt;对记录进行修改时，需要修改trx_id字段，所以当事务B对该记录进行修改时，将小林的余额改成200万时，trx_id会修改为52，MySQL会记录相应的undo log，并以链表的方式串联起来，形成版本链。&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5c640.png&#34;
+&lt;p&gt;&lt;img src=&#34;http://gracefan-typora-imgsubmit.oss-cn-beijing.aliyuncs.com/img/640.png&#34;
 	
 	
 	
@@ -486,7 +486,7 @@
 &lt;li&gt;事务B读取数据（创建Read View），小林的账户余额为200万&lt;/li&gt;
 &lt;/ul&gt;
 &lt;/blockquote&gt;
-&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5c%e8%af%bb%e6%8f%90%e4%ba%a4%e4%ba%8b%e5%8a%a1.png&#34;
+&lt;p&gt;&lt;img src=&#34;http://gracefan-typora-imgsubmit.oss-cn-beijing.aliyuncs.com/img/%e8%af%bb%e6%8f%90%e4%ba%a4%e4%ba%8b%e5%8a%a1.png&#34;
 	
 	
 	
@@ -502,7 +502,7 @@
 &lt;/blockquote&gt;
 &lt;blockquote&gt;
 &lt;p&gt;事务A提交后，由于隔离级别是读提交，所以事务B在每次读数据的时候，会重新创建Read View，此时事务B第三次读取数据时创建的Read View如下：&lt;/p&gt;
-&lt;p&gt;&lt;img src=&#34;https://gracefan723.github.io/gracefanblog/gracefanblog/E:%5ctypora_pictures%5c%e8%af%bb%e6%8f%90%e4%ba%a4%e4%ba%8b%e5%8a%a12.drawio.png&#34;
+&lt;p&gt;&lt;img src=&#34;http://gracefan-typora-imgsubmit.oss-cn-beijing.aliyuncs.com/img/%e8%af%bb%e6%8f%90%e4%ba%a4%e4%ba%8b%e5%8a%a12.drawio.png&#34;
 	
 	
 	
