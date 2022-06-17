@@ -20,9 +20,9 @@
 然后事务再次查询账户余额大于100万的记录，此时查询到的记录数量有6条，发现和前一次读到的记录数量不一样了，就感觉发生了幻觉一样，这种现象就被称为幻读。
  四种隔离级别  由SQL标准提出用于规避这些现象，隔离级别越高，性能效率就越低。  隔离水平高低排序 不同隔离级别并行事务时可能发生的现象会不同 读未提交（read uncommitted）    指一个事务还没提交时，它做的变更就能被其他事务看到。'><title>数据库事务及可重复读、读提交的具体实现</title>
 
-<link rel='canonical' href='https://https://gracefan723.github.io/gracefanblog/p/%E6%95%B0%E6%8D%AE%E5%BA%93%E4%BA%8B%E5%8A%A1%E5%8F%8A%E5%8F%AF%E9%87%8D%E5%A4%8D%E8%AF%BB%E8%AF%BB%E6%8F%90%E4%BA%A4%E7%9A%84%E5%85%B7%E4%BD%93%E5%AE%9E%E7%8E%B0/'>
+<link rel='canonical' href='https://gracefan723.github.io/gracefanblog/p/%E6%95%B0%E6%8D%AE%E5%BA%93%E4%BA%8B%E5%8A%A1%E5%8F%8A%E5%8F%AF%E9%87%8D%E5%A4%8D%E8%AF%BB%E8%AF%BB%E6%8F%90%E4%BA%A4%E7%9A%84%E5%85%B7%E4%BD%93%E5%AE%9E%E7%8E%B0/'>
 
-<link rel="stylesheet" href="/gracefan723.github.io/gracefanblog/scss/style.min.d9e0562edde3d2bdf9d3d81365095a29d062ddaaa5d671f22168e57dfdb18b4f.css"><meta property='og:title' content='数据库事务及可重复读、读提交的具体实现'>
+<link rel="stylesheet" href="/gracefanblog/scss/style.min.d9e0562edde3d2bdf9d3d81365095a29d062ddaaa5d671f22168e57dfdb18b4f.css"><meta property='og:title' content='数据库事务及可重复读、读提交的具体实现'>
 <meta property='og:description' content='第七次组会（数据库事务及可重复读、读提交的具体实现） Intro  一个业务在程序里会涉及到一系列的操作，要么全部执行成功，要么全部失败，不允许出现中间状态的数据。   数据库中的**事务**能达到该效果，等到数据库操作执行完成后，才提交事务  对于已经提交的事务，该事务对数据库所做的修改将永久失效 事务期间发生中断或错误，则该期间所有所做的修改将会被回滚到没执行该事务之前的状态。    ACID数据库的特性   原子性（Atomicity）：一个事务中的所有操作，==要么全部完成，要么全部不完成==，不会结束在中间某个环节，而且事务在执行过程中发生错误，会被回滚到事务开始前的状态，就像这个事务从来没有执行过一样；
   一致性（Consistency）：数据库的完整性不会因为事务的执行而受到破坏，比如表中有一个字段为姓名，它有==唯一约束==，也就是表中姓名不能重复，如果一个事务对姓名字段进行了修改，但是在事务提交后，表中的姓名变得非唯一性了，这就破坏了事务的一致性要求，这时数据库就要撤销该事务，返回初始化的状态。
   事务必须使数据库从一个一致性状态到另外一个一致性状态。
@@ -41,7 +41,7 @@
 接下来，事务A插入了一条余额超过100万的账号，并提交了事务，此时数据库超过100 万余额的账号个数就变为6。
 然后事务再次查询账户余额大于100万的记录，此时查询到的记录数量有6条，发现和前一次读到的记录数量不一样了，就感觉发生了幻觉一样，这种现象就被称为幻读。
  四种隔离级别  由SQL标准提出用于规避这些现象，隔离级别越高，性能效率就越低。  隔离水平高低排序 不同隔离级别并行事务时可能发生的现象会不同 读未提交（read uncommitted）    指一个事务还没提交时，它做的变更就能被其他事务看到。'>
-<meta property='og:url' content='https://https://gracefan723.github.io/gracefanblog/p/%E6%95%B0%E6%8D%AE%E5%BA%93%E4%BA%8B%E5%8A%A1%E5%8F%8A%E5%8F%AF%E9%87%8D%E5%A4%8D%E8%AF%BB%E8%AF%BB%E6%8F%90%E4%BA%A4%E7%9A%84%E5%85%B7%E4%BD%93%E5%AE%9E%E7%8E%B0/'>
+<meta property='og:url' content='https://gracefan723.github.io/gracefanblog/p/%E6%95%B0%E6%8D%AE%E5%BA%93%E4%BA%8B%E5%8A%A1%E5%8F%8A%E5%8F%AF%E9%87%8D%E5%A4%8D%E8%AF%BB%E8%AF%BB%E6%8F%90%E4%BA%A4%E7%9A%84%E5%85%B7%E4%BD%93%E5%AE%9E%E7%8E%B0/'>
 <meta property='og:site_name' content='用魔法打败魔法'>
 <meta property='og:type' content='article'><meta property='article:section' content='Post' />
 <meta name="twitter:title" content="数据库事务及可重复读、读提交的具体实现">
@@ -100,13 +100,13 @@
         
             
             <figure class="site-avatar">
-                <a href="/gracefan723.github.io/gracefanblog/">
+                <a href="/gracefanblog/">
                 
                     
                     
                     
                         
-                        <img src="/gracefan723.github.io/gracefanblog/img/avatar_hu127c4d548c142671a736d4bae844dec3_1196142_300x0_resize_box_3.png" width="300"
+                        <img src="/gracefanblog/img/avatar_hu127c4d548c142671a736d4bae844dec3_1196142_300x0_resize_box_3.png" width="300"
                             height="300" class="site-logo" loading="lazy" alt="Avatar">
                     
                 
@@ -119,7 +119,7 @@
         
         
         <div class="site-meta">
-            <h1 class="site-name"><a href="/gracefan723.github.io/gracefanblog">用魔法打败魔法</a></h1>
+            <h1 class="site-name"><a href="/gracefanblog">用魔法打败魔法</a></h1>
             <h2 class="site-description">ONLY REAL MF STAY LOW 🙌</h2>
         </div>
     </header><ol class="social-menu">
@@ -201,7 +201,7 @@
 
     <div class="article-title-wrapper">
         <h2 class="article-title">
-            <a href="/gracefan723.github.io/gracefanblog/p/%E6%95%B0%E6%8D%AE%E5%BA%93%E4%BA%8B%E5%8A%A1%E5%8F%8A%E5%8F%AF%E9%87%8D%E5%A4%8D%E8%AF%BB%E8%AF%BB%E6%8F%90%E4%BA%A4%E7%9A%84%E5%85%B7%E4%BD%93%E5%AE%9E%E7%8E%B0/">数据库事务及可重复读、读提交的具体实现</a>
+            <a href="/gracefanblog/p/%E6%95%B0%E6%8D%AE%E5%BA%93%E4%BA%8B%E5%8A%A1%E5%8F%8A%E5%8F%AF%E9%87%8D%E5%A4%8D%E8%AF%BB%E8%AF%BB%E6%8F%90%E4%BA%A4%E7%9A%84%E5%85%B7%E4%BD%93%E5%AE%9E%E7%8E%B0/">数据库事务及可重复读、读提交的具体实现</a>
         </h2>
     
         
@@ -1007,7 +1007,7 @@
                 src="https://cdn.jsdelivr.net/npm/node-vibrant@3.1.5/dist/vibrant.min.js"integrity="sha256-5NovOZc4iwiAWTYIFiIM7DxKUXKWvpVEuMEPLzcm5/g="crossorigin="anonymous"
                 
                 >
-            </script><script type="text/javascript" src="/gracefan723.github.io/gracefanblog/ts/main.js" defer></script>
+            </script><script type="text/javascript" src="/gracefanblog/ts/main.js" defer></script>
 <script>
     (function () {
         const customFont = document.createElement('link');
